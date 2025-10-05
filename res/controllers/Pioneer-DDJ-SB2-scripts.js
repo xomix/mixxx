@@ -745,7 +745,7 @@ PioneerDDJSB2.loopOutButton = function(channel, control, value, status, group) {
 
 PioneerDDJSB2.loopExitButton = function(channel, control, value, status, group) {
     if (value) {
-        engine.setValue(PioneerDDJSB2.deckSwitchTable[group], "reloop_exit", 1);
+        engine.setValue(PioneerDDJSB2.deckSwitchTable[group], "reloop_toggle", 1);
     }
 };
 
