@@ -90,8 +90,23 @@ PioneerDDJSB2.jumpPreviewPosition = 0.5;
 ///////////////////////////////////////////////////////////////
 //               INIT, SHUTDOWN & GLOBAL HELPER              //
 ///////////////////////////////////////////////////////////////
+
+PioneerDDJSB2.connections = [];
 PioneerDDJSB2.longButtonPress = false;
 PioneerDDJSB2.speedRateToNormalTimer = new Array(4);
+
+// Transient function
+PioneerDDJSB2.bindConnections = function(group, controlsToFunctions, remove) {
+    remove = (remove === undefined) ? false : remove;
+
+    for (var control in controlsToFunctions) {
+        const conn = engine.makeConnection(group, control, controlsToFunctions[control]);
+        if (!remove) {
+            engine.trigger(group, control);
+        }
+        PioneerDDJSB2.connections.push(conn);
+    }
+};
 
 PioneerDDJSB2.init = function(_id) {
     PioneerDDJSB2.deck = [];
@@ -392,6 +407,9 @@ PioneerDDJSB2.shutdown = function() {
     for (channel = 0; channel <= 3; channel++) {
         midi.sendShortMsg(0xB0 + channel, 2, 0);
     }
+
+    // cleanup all existing connections
+    PioneerDDJSB2.connections.forEach(conn => conn.disconnect());
 };
 
 PioneerDDJSB2.longButtonPressWait = function() {
@@ -491,38 +509,45 @@ PioneerDDJSB2.autodjToggle = function(channel, control, value, _status, _group) 
 //                      CONTROL BINDING                      //
 ///////////////////////////////////////////////////////////////
 
-PioneerDDJSB2.bindSamplerControlConnections = function(samplerGroup, isUnbinding) {
-    engine.connectControl(samplerGroup, "duration", "PioneerDDJSB2.samplerLeds", isUnbinding);
+PioneerDDJSB2.bindSamplerControlConnections = function(samplerGroup) {
+    var conn = engine.makeConnection(samplerGroup, "duration", PioneerDDJSB2.samplerLedsDuration);
+    conn.trigger();
+    PioneerDDJSB2.connections.push(conn);
 };
 
 PioneerDDJSB2.bindDeckControlConnections = function(channelGroup, isUnbinding) {
     var i,
         index,
         controlsToFunctions = {
-            "pfl": "PioneerDDJSB2.headphoneCueLed",
-            "keylock": "PioneerDDJSB2.keyLockLed",
-            "loop_in": "PioneerDDJSB2.loopInLed",
-            "loop_out": "PioneerDDJSB2.loopOutLed",
-            "filterLowKill": "PioneerDDJSB2.lowKillLed",
-            "filterMidKill": "PioneerDDJSB2.midKillLed",
-            "filterHighKill": "PioneerDDJSB2.highKillLed",
-            "mute": "PioneerDDJSB2.muteLed",
-            "loop_enabled": "PioneerDDJSB2.loopExitLed",
+            "pfl": PioneerDDJSB2.headphoneCueLed,
+            "keylock": PioneerDDJSB2.keyLockLed,
+            "loop_in": PioneerDDJSB2.loopInLed,
+            "loop_out": PioneerDDJSB2.loopOutLed,
+            "mute": PioneerDDJSB2.muteLed,
+            "loop_enabled": PioneerDDJSB2.loopExitLed,
         };
 
     if (PioneerDDJSB2.invertVinylSlipButton) {
-        controlsToFunctions.slipEnabled = "PioneerDDJSB2.slipLed";
+        controlsToFunctions.slipEnabled = PioneerDDJSB2.slipLed;
     }
 
     for (i = 1; i <= 8; i++) {
-        controlsToFunctions["hotcue_" + i + "_enabled"] = "PioneerDDJSB2.hotCueLeds";
+        controlsToFunctions["hotcue_" + i + "_status"] = PioneerDDJSB2.hotCueLeds;
     }
 
     for (index in PioneerDDJSB2.looprollIntervals) {
-        controlsToFunctions["beatlooproll_" + PioneerDDJSB2.looprollIntervals[index] + "_activate"] = "PioneerDDJSB2.beatlooprollLeds";
+        controlsToFunctions["beatlooproll_" + PioneerDDJSB2.looprollIntervals[index] + "_activate"] = PioneerDDJSB2.beatlooprollLeds;
     }
 
-    script.bindConnections(channelGroup, controlsToFunctions, isUnbinding);
+    var eqGroup = "[EqualizerRack1_" + channelGroup + "_Effect1]";
+    var eqControlsToFunctions = {
+        "button_parameter1": PioneerDDJSB2.lowKillLed,
+        "button_parameter2": PioneerDDJSB2.midKillLed,
+        "button_parameter3": PioneerDDJSB2.highKillLed,
+    };
+
+    PioneerDDJSB2.bindConnections(channelGroup, controlsToFunctions, isUnbinding);
+    PioneerDDJSB2.bindConnections(eqGroup, eqControlsToFunctions, isUnbinding);
 };
 
 PioneerDDJSB2.bindNonDeckControlConnections = function(isUnbinding) {
@@ -533,13 +558,13 @@ PioneerDDJSB2.bindNonDeckControlConnections = function(isUnbinding) {
     }
 
     if (PioneerDDJSB2.showVumeterMaster) {
-        engine.connectControl("[Main]", "vu_meter_left", "PioneerDDJSB2.VuMeterLeds", isUnbinding);
-        engine.connectControl("[Main]", "vu_meter_right", "PioneerDDJSB2.VuMeterLeds", isUnbinding);
+        PioneerDDJSB2.connections.push(engine.makeConnection("[Main]", "vu_meter_left", PioneerDDJSB2.VuMeterLeds));
+        PioneerDDJSB2.connections.push(engine.makeConnection("[Main]", "vu_meter_right", PioneerDDJSB2.VuMeterLeds));
     } else {
-        engine.connectControl("[Channel1]", "vu_meter", "PioneerDDJSB2.VuMeterLeds", isUnbinding);
-        engine.connectControl("[Channel2]", "vu_meter", "PioneerDDJSB2.VuMeterLeds", isUnbinding);
-        engine.connectControl("[Channel3]", "vu_meter", "PioneerDDJSB2.VuMeterLeds", isUnbinding);
-        engine.connectControl("[Channel4]", "vu_meter", "PioneerDDJSB2.VuMeterLeds", isUnbinding);
+        for (let i = 1; i <= 4; i++) {
+        const channelGroup = `[Channel${i}]`;
+        PioneerDDJSB2.connections.push(engine.makeConnection(channelGroup, "vu_meter", PioneerDDJSB2.VuMeterLeds));
+        }
     }
 };
 
@@ -759,15 +784,21 @@ PioneerDDJSB2.reverseRollButton = function(channel, control, value, status, grou
 };
 
 PioneerDDJSB2.lowKillButton = function(channel, control, value, status, group) {
-    engine.setValue(PioneerDDJSB2.deckSwitchTable[group], "filterLowKill", value ? 1 : 0);
+    var deckGroup = PioneerDDJSB2.deckSwitchTable[group];
+    var eqGroup = "[EqualizerRack1_" + deckGroup + "_Effect1]";
+    engine.setValue(eqGroup, "button_parameter1", value ? 1 : 0);
 };
 
 PioneerDDJSB2.midKillButton = function(channel, control, value, status, group) {
-    engine.setValue(PioneerDDJSB2.deckSwitchTable[group], "filterMidKill", value ? 1 : 0);
+    var deckGroup = PioneerDDJSB2.deckSwitchTable[group];
+    var eqGroup = "[EqualizerRack1_" + deckGroup + "_Effect1]";
+    engine.setValue(eqGroup, "button_parameter2", value ? 1 : 0);
 };
 
 PioneerDDJSB2.highKillButton = function(channel, control, value, status, group) {
-    engine.setValue(PioneerDDJSB2.deckSwitchTable[group], "filterHighKill", value ? 1 : 0);
+    var deckGroup = PioneerDDJSB2.deckSwitchTable[group];
+    var eqGroup = "[EqualizerRack1_" + deckGroup + "_Effect1]";
+    engine.setValue(eqGroup, "button_parameter3", value ? 1 : 0);
 };
 
 PioneerDDJSB2.muteButton = function(channel, control, value, status, group) {
@@ -876,7 +907,7 @@ PioneerDDJSB2.muteLed = function(value, group, _control) {
     PioneerDDJSB2.padLedControl(group, PioneerDDJSB2.ledGroups.manualLoop, true, 3, false, value);
 };
 
-PioneerDDJSB2.samplerLeds = function(value, group, _control) {
+PioneerDDJSB2.samplerLedsDuration = function(value, group, _control) {
     var sampler = PioneerDDJSB2.samplerGroups[group],
         channel;
 
@@ -908,7 +939,7 @@ PioneerDDJSB2.hotCueLeds = function(value, group, control) {
         hotCueNum;
 
     for (hotCueNum = 1; hotCueNum <= 8; hotCueNum++) {
-        if (control === "hotcue_" + hotCueNum + "_enabled") {
+        if (control === "hotcue_" + hotCueNum + "_status") {
             padNum = (hotCueNum - 1) % 4;
             shiftedGroup = (hotCueNum > 4);
             PioneerDDJSB2.padLedControl(group, PioneerDDJSB2.ledGroups.hotCue, shiftedGroup, padNum, false, value);
