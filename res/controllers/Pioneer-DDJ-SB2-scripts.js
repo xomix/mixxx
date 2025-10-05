@@ -678,7 +678,9 @@ PioneerDDJSB2.beatloopRollButtons = function(channel, control, value, status, gr
 
 PioneerDDJSB2.vinylButton = function(channel, control, value, status, group) {
     if (PioneerDDJSB2.invertVinylSlipButton) {
-        engine.setValue(group, "slip_enabled", value / 127);
+        if(value){
+            script.toggleControl(group, "slip_enabled");
+        }
     } else {
         PioneerDDJSB2.toggleScratch(channel, control, value, status, group);
     }
@@ -688,7 +690,9 @@ PioneerDDJSB2.slipButton = function(channel, control, value, status, group) {
     if (PioneerDDJSB2.invertVinylSlipButton) {
         PioneerDDJSB2.toggleScratch(channel, control, value, status, group);
     } else {
-        engine.setValue(group, "slip_enabled", value / 127);
+        if(value){
+            script.toggleControl(group, "slip_enabled");
+        }
     }
 };
 
